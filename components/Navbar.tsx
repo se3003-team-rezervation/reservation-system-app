@@ -4,9 +4,9 @@ import { usePathname } from "next/navigation";
 import { UtensilsCrossed, CalendarCheck, ShieldCheck } from "lucide-react";
 
 const navLinks = [
-  { href: "/", label: "Reserve", icon: UtensilsCrossed },
-  { href: "/my-reservations", label: "My Reservations", icon: CalendarCheck },
-  { href: "/staff", label: "Staff Panel", icon: ShieldCheck },
+  { href: "/", label: "Reserve", icon: UtensilsCrossed, ariaLabel: "Make a reservation" },
+  { href: "/my-reservations", label: "My Reservations", icon: CalendarCheck, ariaLabel: "View my reservations" },
+  { href: "/staff", label: "Staff Panel", icon: ShieldCheck, ariaLabel: "Open staff panel" },
 ];
 
 export default function Navbar() {
@@ -22,6 +22,7 @@ export default function Navbar() {
         top: 0,
         zIndex: 50,
       }}
+      role="banner"
     >
       <div
         style={{
@@ -35,7 +36,11 @@ export default function Navbar() {
         }}
       >
         {/* Logo */}
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.625rem", textDecoration: "none" }}>
+        <Link
+          href="/"
+          aria-label="DormDine – go to home"
+          style={{ display: "flex", alignItems: "center", gap: "0.625rem", textDecoration: "none" }}
+        >
           <div
             style={{
               width: 36,
@@ -46,23 +51,34 @@ export default function Navbar() {
               alignItems: "center",
               justifyContent: "center",
               boxShadow: "0 4px 12px rgba(99,102,241,0.45)",
+              flexShrink: 0,
             }}
           >
             <UtensilsCrossed size={18} color="white" />
           </div>
-          <span style={{ fontWeight: 800, fontSize: "1.125rem", color: "white", letterSpacing: "-0.02em" }}>
+          <span
+            style={{
+              fontWeight: 800,
+              fontSize: "1.125rem",
+              color: "white",
+              letterSpacing: "-0.02em",
+              whiteSpace: "nowrap",
+            }}
+          >
             DormDine
           </span>
         </Link>
 
         {/* Navigation */}
-        <nav style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-          {navLinks.map(({ href, label, icon: Icon }) => {
+        <nav aria-label="Main navigation" style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+          {navLinks.map(({ href, label, icon: Icon, ariaLabel }) => {
             const active = pathname === href;
             return (
               <Link
                 key={href}
                 href={href}
+                aria-label={ariaLabel}
+                aria-current={active ? "page" : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -74,12 +90,22 @@ export default function Navbar() {
                   textDecoration: "none",
                   color: active ? "white" : "rgba(255,255,255,0.6)",
                   background: active ? "rgba(99,102,241,0.25)" : "transparent",
-                  border: active ? "1px solid rgba(99,102,241,0.4)" : "1px solid transparent",
+                  border: active
+                    ? "1px solid rgba(99,102,241,0.4)"
+                    : "1px solid transparent",
                   transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
                 }}
               >
                 <Icon size={15} />
-                <span className="hidden sm:inline">{label}</span>
+                <span
+                  style={{
+                    display: "none",
+                  }}
+                  className="sm:inline-block"
+                >
+                  {label}
+                </span>
               </Link>
             );
           })}
