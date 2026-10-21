@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🍽️ DormDine – Cafeteria Reservation System
 
-## Getting Started
+> Skip the queue. Reserve your seat. Walk in with a QR code.
 
-First, run the development server:
+DormDine is a full-stack web application that allows university dormitory students to pre-book cafeteria time slots, receive a unique QR code, and check in seamlessly. Cafeteria staff can monitor slot occupancy in real time and scan/validate QR codes at the entrance.
+
+---
+
+## ✨ Features
+
+### Student Flow
+- Select a meal (Breakfast / Lunch / Dinner)
+- Choose an available time slot with live occupancy indicators
+- Receive a unique reservation ID and scannable **QR Code**
+- View and manage reservations from the "My Reservations" tab
+
+### Staff Panel (`/staff`)
+- Real-time slot occupancy dashboard with color-coded progress bars
+- QR code scanning via device camera
+- Manual check-in by entering reservation ID
+- Reservation list with one-click check-in buttons
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| Icons | Lucide React |
+| QR Generation | `qrcode.react` |
+| QR Scanning | `html5-qrcode` |
+| Data | In-memory mock store + `localStorage` |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+
+- npm 9+
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/se3003-team-rezervation/reservation-system-app.git
+cd reservation-system-app
+
+# Install dependencies
+npm install
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build for Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 📁 Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+reservation-system-app/
+├── app/
+│   ├── layout.tsx               # Root layout
+│   ├── page.tsx                 # Student home (meal selection)
+│   ├── reserve/page.tsx         # Time slot selection + QR confirmation
+│   ├── my-reservations/page.tsx # Student reservation history
+│   ├── staff/page.tsx           # Staff panel
+│   └── api/
+│       ├── slots/route.ts       # GET /api/slots
+│       ├── reservations/route.ts         # GET + POST /api/reservations
+│       └── reservations/[id]/route.ts   # GET + PATCH /api/reservations/:id
+├── components/
+│   ├── Navbar.tsx
+│   ├── MealCard.tsx
+│   ├── SlotCard.tsx
+│   ├── QRDisplay.tsx
+│   ├── QRScanner.tsx
+│   └── SlotOccupancyBar.tsx
+└── lib/
+    ├── types.ts        # Shared TypeScript interfaces
+    └── mockStore.ts    # In-memory data store
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🔌 API Reference
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/slots?meal=lunch` | List time slots, optionally filtered by meal |
+| `GET` | `/api/reservations` | List all reservations |
+| `POST` | `/api/reservations` | Create a new reservation |
+| `GET` | `/api/reservations/:id` | Get a single reservation |
+| `PATCH` | `/api/reservations/:id` | Check in a student |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 👥 Team
+
+SE3003 – Software Project Management  
+Group project – Cafeteria Reservation System
+
+---
+
+## 📄 License
+
+This project is developed for educational purposes as part of the SE3003 course.
