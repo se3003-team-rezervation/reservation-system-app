@@ -1,7 +1,9 @@
-import { UtensilsCrossed, Github } from "lucide-react";
+"use client";
+import { UtensilsCrossed, GitBranch } from "lucide-react";
+
+const YEAR = 2026;
 
 export default function Footer() {
-  const year = new Date().getFullYear();
   return (
     <footer
       style={{
@@ -32,7 +34,7 @@ export default function Footer() {
           <UtensilsCrossed size={13} color="white" />
         </div>
         <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.8125rem" }}>
-          © {year} DormDine — SE3003 Group Project
+          © {YEAR} DormDine — SE3003 Group Project
         </span>
       </div>
 
@@ -51,7 +53,7 @@ export default function Footer() {
         }}
         aria-label="View source on GitHub"
       >
-        <Github size={14} />
+        <GitBranch size={14} />
         View on GitHub
       </a>
     </footer>
