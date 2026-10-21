@@ -45,3 +45,8 @@ export const reservations: Reservation[] = [
 export function generateReservationId(): string {
   return "RES" + Math.random().toString(36).substr(2, 6).toUpperCase();
 }
+
+/** Returns a human-readable label for a time slot, e.g. "12:00 – 12:30" */
+export function formatSlotTime(startTime: string, endTime: string): string {
+  return `${startTime} – ${endTime}`;
+}
