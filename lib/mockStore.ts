@@ -1,5 +1,11 @@
 import { TimeSlot, Reservation } from "./types";
 
+/**
+ * In-memory mock data store.
+ * Acts as a lightweight substitute for a real database during development.
+ * Data resets on every server restart (Next.js dev or prod process).
+ */
+
 // In-memory stores (module-level singletons for the Node.js process)
 export const slots: TimeSlot[] = [
   // Breakfast 07:00 – 09:00
