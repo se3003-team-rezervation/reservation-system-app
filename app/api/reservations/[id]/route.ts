@@ -1,13 +1,21 @@
-import { NextRequest } from "next/server";
-import { getDb, saveDb, withSlotLock } from "@/lib/store";
+import type { NextRequest } from "next/server";
+import { getDb, saveDb, withSlotLock } from "../../../../lib/store.ts";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const normId = id.trim().toUpperCase();
   const db = await getDb();
-  const reservation = db.reservations.find((r) => r.id === id);
+  const reservation = db.reservations.find((r) => {
+    const rId = r.id.toUpperCase();
+    return (
+      rId === normId ||
+      rId === `RES${normId}` ||
+      (normId.length === 6 && rId.endsWith(normId))
+    );
+  });
 
   if (!reservation) {
     return Response.json({ error: "Reservation not found" }, { status: 404 });
@@ -58,8 +66,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const normId = id.trim().toUpperCase();
   const db = await getDb();
-  const reservation = db.reservations.find((r) => r.id === id);
+  const reservation = db.reservations.find((r) => {
+    const rId = r.id.toUpperCase();
+    return (
+      rId === normId ||
+      rId === `RES${normId}` ||
+      (normId.length === 6 && rId.endsWith(normId))
+    );
+  });
 
   if (!reservation) {
     return Response.json({ error: "Reservation not found" }, { status: 404 });
@@ -94,8 +110,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const normId = id.trim().toUpperCase();
   const db = await getDb();
-  const reservation = db.reservations.find((r) => r.id === id);
+  const reservation = db.reservations.find((r) => {
+    const rId = r.id.toUpperCase();
+    return (
+      rId === normId ||
+      rId === `RES${normId}` ||
+      (normId.length === 6 && rId.endsWith(normId))
+    );
+  });
   if (!reservation) {
     return Response.json({ error: "Reservation not found" }, { status: 404 });
   }

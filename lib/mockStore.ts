@@ -1,4 +1,4 @@
-import { TimeSlot, Reservation } from "./types";
+import type { TimeSlot, Reservation } from "./types";
 
 /**
  * Seed data used to initialise the persistent store (see `lib/store.ts`)

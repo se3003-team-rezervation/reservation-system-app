@@ -111,8 +111,16 @@ export default function StaffPage() {
   }
 
   function handleManualCheckIn() {
-    if (!manualCode.trim()) return;
-    handleCheckIn(manualCode.trim().toUpperCase());
+    const code = manualCode.trim().toUpperCase();
+    if (!code) {
+      setCheckResult({ success: false, message: "Please enter a reservation code." });
+      return;
+    }
+    if (code.length < 3) {
+      setCheckResult({ success: false, message: "Reservation code must be at least 3 characters." });
+      return;
+    }
+    handleCheckIn(code);
     setManualCode("");
   }
 
@@ -354,7 +362,7 @@ export default function StaffPage() {
                 <input
                   id="manual-code-input"
                   type="text"
-                  placeholder="Reservation ID (e.g. RES001)"
+                  placeholder="Enter 6-char code or ID (e.g. RES001)"
                   value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleManualCheckIn(); }}

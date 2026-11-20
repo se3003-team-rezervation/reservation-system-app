@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { TimeSlot, Reservation } from "./types";
-import { createSeedSlots, createSeedReservations } from "./mockStore";
+import type { TimeSlot, Reservation } from "./types";
+import { createSeedSlots, createSeedReservations } from "./mockStore.ts";
 
 /**
  * Persistent JSON-file data store.
