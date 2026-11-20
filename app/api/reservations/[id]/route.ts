@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
-import { reservations } from "@/lib/mockStore";
+import { getDb, saveDb } from "@/lib/store";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const reservation = reservations.find((r) => r.id === id);
+  const db = await getDb();
+  const reservation = db.reservations.find((r) => r.id === id);
 
   if (!reservation) {
     return Response.json({ error: "Reservation not found" }, { status: 404 });
@@ -21,6 +22,7 @@ export async function PATCH(
   }
 
   reservation.status = "checked-in";
+  await saveDb();
   return Response.json(reservation);
 }
 
@@ -29,7 +31,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const reservation = reservations.find((r) => r.id === id);
+  const db = await getDb();
+  const reservation = db.reservations.find((r) => r.id === id);
   if (!reservation) {
     return Response.json({ error: "Reservation not found" }, { status: 404 });
   }

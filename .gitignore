@@ -20,6 +20,9 @@
 # production
 /build
 
+# persistent JSON data store (lib/store.ts)
+/.data/
+
 # misc
 .DS_Store
 *.pem

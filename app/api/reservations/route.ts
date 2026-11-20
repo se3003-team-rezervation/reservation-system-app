@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
-import { reservations, slots, generateReservationId } from "@/lib/mockStore";
+import { generateReservationId } from "@/lib/mockStore";
+import { getDb, saveDb } from "@/lib/store";
 import { Reservation } from "@/lib/types";
 
 export async function GET() {
-  return Response.json(reservations);
+  const db = await getDb();
+  return Response.json(db.reservations);
 }
 
 export async function POST(request: NextRequest) {
@@ -14,7 +16,8 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const slot = slots.find((s) => s.id === slotId);
+  const db = await getDb();
+  const slot = db.slots.find((s) => s.id === slotId);
   if (!slot) {
     return Response.json({ error: "Slot not found" }, { status: 404 });
   }
@@ -24,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   // Check if student already has an active reservation for this meal/date
   const today = new Date().toISOString().split("T")[0];
-  const existing = reservations.find(
+  const existing = db.reservations.find(
     (r) =>
       r.studentId === studentId &&
       r.meal === slot.meal &&
@@ -51,8 +54,9 @@ export async function POST(request: NextRequest) {
     createdAt: new Date().toISOString(),
   };
 
-  reservations.push(newReservation);
+  db.reservations.push(newReservation);
   slot.booked += 1;
+  await saveDb();
 
   return Response.json(newReservation, { status: 201 });
 }

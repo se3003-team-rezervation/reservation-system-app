@@ -32,7 +32,7 @@ DormDine is a full-stack web application that allows university dormitory studen
 | Icons | Lucide React |
 | QR Generation | `qrcode.react` |
 | QR Scanning | `html5-qrcode` |
-| Data | In-memory mock store + `localStorage` |
+| Data | Persistent JSON file store (`.data/dormdine.json`) + `localStorage` |
 
 ---
 
@@ -90,7 +90,8 @@ reservation-system-app/
 │   └── SlotOccupancyBar.tsx
 └── lib/
     ├── types.ts        # Shared TypeScript interfaces
-    └── mockStore.ts    # In-memory data store
+    ├── mockStore.ts    # Seed data + helpers
+    └── store.ts        # Persistent JSON file store
 ```
 
 ---
