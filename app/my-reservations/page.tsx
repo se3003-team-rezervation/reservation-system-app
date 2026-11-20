@@ -12,6 +12,8 @@ import {
   QrCode,
   ChevronRight,
   UtensilsCrossed,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -53,6 +55,19 @@ function getServerSnapshot(): string {
   return SERVER_SNAPSHOT;
 }
 
+function subscribeOnline(callback: () => void) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+
+function getOnlineSnapshot(): boolean {
+  return typeof navigator !== "undefined" ? navigator.onLine : true;
+}
+
 function useIsMounted() {
   return useSyncExternalStore(
     () => () => {},
@@ -63,6 +78,7 @@ function useIsMounted() {
 
 export default function MyReservationsPage() {
   const mounted = useIsMounted();
+  const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, () => true);
   const rawReservations = useSyncExternalStore(
     subscribe,
     getReservationsSnapshot,
@@ -161,17 +177,56 @@ export default function MyReservationsPage() {
           }}
         >
           <div>
-            <h1
-              style={{
-                fontWeight: 800,
-                fontSize: "1.875rem",
-                color: "white",
-                margin: 0,
-                letterSpacing: "-0.025em",
-              }}
-            >
-              My Reservations
-            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <h1
+                style={{
+                  fontWeight: 800,
+                  fontSize: "1.875rem",
+                  color: "white",
+                  margin: 0,
+                  letterSpacing: "-0.025em",
+                }}
+              >
+                My Reservations
+              </h1>
+              {!isOnline ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "9999px",
+                    background: "rgba(245,158,11,0.15)",
+                    border: "1px solid rgba(245,158,11,0.35)",
+                    color: "#fbbf24",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  <WifiOff size={13} />
+                  Offline Mode · Cached QR Ready
+                </span>
+              ) : (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "9999px",
+                    background: "rgba(16,185,129,0.12)",
+                    border: "1px solid rgba(16,185,129,0.25)",
+                    color: "#6ee7b7",
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  <Wifi size={13} />
+                  Offline QR Enabled
+                </span>
+              )}
+            </div>
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.875rem", marginTop: "0.35rem" }}>
               {activeReservations.length > 0
                 ? `${activeReservations.length} active · ${reservations.length} total`

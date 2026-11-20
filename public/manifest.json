@@ -1,0 +1,21 @@
+{
+  "name": "DormDine - Student Dining Reservation System",
+  "short_name": "DormDine",
+  "description": "Smart cafeteria slot booking & offline QR check-in for student dormitories",
+  "start_url": "/my-reservations",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/window.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/window.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
