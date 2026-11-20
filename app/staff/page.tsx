@@ -27,6 +27,9 @@ import {
   ShieldCheck,
   ArrowLeft,
   TrendingUp,
+  Download,
+  Printer,
+  FileSpreadsheet,
 } from "lucide-react";
 import { soundFeedback } from "@/lib/audio";
 import OccupancyAnalytics from "@/components/OccupancyAnalytics";
@@ -536,6 +539,39 @@ export default function StaffPage() {
               <ShieldCheck size={13} />
               Staff Verified
             </span>
+            <a
+              href="/api/reports/export?type=attendance"
+              download
+              className="btn-secondary"
+              id="export-attendance-btn"
+              title="Download daily student attendance report as CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 0.875rem", fontSize: "0.875rem", textDecoration: "none" }}
+            >
+              <Download size={14} color="#34d399" />
+              <span>Attendance CSV</span>
+            </a>
+            <a
+              href="/api/reports/export?type=slots"
+              download
+              className="btn-secondary"
+              id="export-slots-btn"
+              title="Download slot utilization and capacity report as CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 0.875rem", fontSize: "0.875rem", textDecoration: "none" }}
+            >
+              <FileSpreadsheet size={14} color="#818cf8" />
+              <span>Slots CSV</span>
+            </a>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => window.print()}
+              id="print-report-btn"
+              title="Print report or save as PDF"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 0.875rem", fontSize: "0.875rem" }}
+            >
+              <Printer size={14} />
+              <span>PDF / Print</span>
+            </button>
             <button
               className="btn-secondary"
               onClick={handleStaffLogout}
