@@ -1,22 +1,40 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { TimeSlot, Reservation } from "./types";
+import type { TimeSlot, Reservation } from "./types.ts";
 import { createSeedSlots, createSeedReservations } from "./mockStore.ts";
+import {
+  isPostgresConfigured,
+  getPgPool,
+  closePgPool,
+  pgGetSlots,
+  pgGetReservations,
+  pgResetDb,
+  pgCreateReservationTx,
+  pgCancelReservationTx,
+  pgCheckInReservationTx,
+  pgGetSlotById,
+  pgCreateSlot,
+  pgUpdateSlot,
+  pgDeleteSlot,
+  pgGetReservationById,
+} from "./db/index.ts";
 
-/**
- * Persistent JSON-file data store.
- *
- * Replaces the old in-memory mock store so that slots and reservations survive
- * server restarts. Data lives in `.data/dormdine.json` by default (git-ignored).
- *
- * Configuration (env):
- *  - DORMDINE_DATA_FILE  absolute/relative path of the JSON file
- *  - DORMDINE_STORAGE    set to "memory" to disable disk persistence (tests)
- *
- * The parsed state is cached on `globalThis` so every route handler bundle in
- * the same Node.js process shares one copy. Writes are atomic (temp file +
- * rename) so a crash mid-write can never corrupt the data file.
- */
+export {
+  isPostgresConfigured,
+  getPgPool,
+  closePgPool,
+  pgGetSlots,
+  pgGetReservations,
+  pgResetDb,
+  pgCreateReservationTx,
+  pgCancelReservationTx,
+  pgCheckInReservationTx,
+  pgGetSlotById,
+  pgCreateSlot,
+  pgUpdateSlot,
+  pgDeleteSlot,
+  pgGetReservationById,
+};
 
 export interface DbState {
   slots: TimeSlot[];
@@ -35,7 +53,7 @@ function isMemoryMode(): boolean {
 }
 
 export function getDataFilePath(): string {
-  const configured = process.env.DORMDINE_DATA_FILE;
+  const configured = process.env.DORMDINE_DATA_FILE || process.env.DORM_DINE_STORE_PATH;
   if (configured) return path.resolve(configured);
   return path.join(process.cwd(), ".data", "dormdine.json");
 }
@@ -82,8 +100,16 @@ async function writeToDisk(state: DbState): Promise<void> {
   await fs.rename(/*turbopackIgnore: true*/ tmp, file);
 }
 
-/** Returns the live (mutable) store state, loading it from disk on first use. */
+/** Returns the live store state (from PostgreSQL if configured, or from disk/memory). */
 export async function getDb(): Promise<DbState> {
+  if (isPostgresConfigured()) {
+    const [slots, reservations] = await Promise.all([
+      pgGetSlots({ includeDisabled: true }),
+      pgGetReservations(),
+    ]);
+    return { slots, reservations };
+  }
+
   if (g.__dormDineDb) return g.__dormDineDb;
   if (!g.__dormDineDbLoading) {
     g.__dormDineDbLoading = loadFromDisk().then((state) => {
@@ -95,14 +121,22 @@ export async function getDb(): Promise<DbState> {
   return g.__dormDineDbLoading;
 }
 
-/** Persists the current in-memory state to disk. Call after every mutation. */
+/** Persists state (no-op in PostgreSQL since transactions commit immediately). */
 export async function saveDb(): Promise<void> {
+  if (isPostgresConfigured()) {
+    return;
+  }
   const state = await getDb();
   await writeToDisk(state);
 }
 
 /** Replaces the store contents (defaults to seed data). Intended for tests. */
 export async function resetDb(state?: DbState): Promise<DbState> {
+  if (isPostgresConfigured()) {
+    await pgResetDb(state?.slots, state?.reservations);
+    return getDb();
+  }
+
   const next = state ?? createSeedState();
   g.__dormDineDb = next;
   g.__dormDineDbLoading = undefined;
@@ -111,8 +145,7 @@ export async function resetDb(state?: DbState): Promise<DbState> {
 }
 
 /**
- * Concurrency lock handling to prevent slot overbooking.
- * Serializes operations for a given slot ID to guarantee atomic check-and-reserve.
+ * Concurrency lock handling to prevent slot overbooking in non-Postgres storage.
  */
 const slotLocks = new Map<string, Promise<void>>();
 
