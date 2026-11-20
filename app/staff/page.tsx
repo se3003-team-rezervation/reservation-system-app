@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
 import Navbar from "@/components/Navbar";
 import SlotOccupancyBar from "@/components/SlotOccupancyBar";
 import dynamic from "next/dynamic";
@@ -17,7 +17,11 @@ import {
   Plus,
   Trash2,
   Power,
+  Volume2,
+  VolumeX,
+  X,
 } from "lucide-react";
+import { soundFeedback } from "@/lib/audio";
 
 const QRScanner = dynamic(() => import("@/components/QRScanner"), {
   ssr: false,
@@ -45,6 +49,28 @@ export default function StaffPage() {
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "checkin" | "slots">("overview");
   const [processing, setProcessing] = useState(false);
+  const soundEnabled = useSyncExternalStore(
+    soundFeedback.subscribe,
+    soundFeedback.getSnapshot,
+    () => true
+  );
+
+  const toggleSound = () => {
+    const next = !soundEnabled;
+    soundFeedback.setEnabled(next);
+    if (next) {
+      soundFeedback.playSuccess();
+    }
+  };
+
+  // Auto-dismiss notification after 8 seconds
+  useEffect(() => {
+    if (!checkResult) return;
+    const t = setTimeout(() => {
+      setCheckResult(null);
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [checkResult]);
 
   // New slot form state
   const [newMeal, setNewMeal] = useState<Meal>("breakfast");
@@ -83,15 +109,20 @@ export default function StaffPage() {
     try {
       const res = await fetch(`/api/reservations/${reservationId}`, {
         method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "checked-in" }),
       });
       const data = await res.json();
       if (res.ok) {
-        setCheckResult({ success: true, message: `Welcome, ${data.studentName}!`, reservation: data });
+        soundFeedback.playSuccess();
+        setCheckResult({ success: true, message: `Welcome, ${data.studentName}! (${data.studentId})`, reservation: data });
         fetchData();
       } else {
+        soundFeedback.playFailure();
         setCheckResult({ success: false, message: data.error || "Check-in failed." });
       }
     } catch {
+      soundFeedback.playFailure();
       setCheckResult({ success: false, message: "Network error." });
     } finally {
       setProcessing(false);
@@ -103,7 +134,10 @@ export default function StaffPage() {
     try {
       const parsed = JSON.parse(raw);
       if (parsed.id) handleCheckIn(parsed.id);
-      else setCheckResult({ success: false, message: "Invalid QR code format." });
+      else {
+        soundFeedback.playFailure();
+        setCheckResult({ success: false, message: "Invalid QR code format." });
+      }
     } catch {
       // Maybe raw is just the ID
       handleCheckIn(raw.trim());
@@ -113,10 +147,12 @@ export default function StaffPage() {
   function handleManualCheckIn() {
     const code = manualCode.trim().toUpperCase();
     if (!code) {
+      soundFeedback.playFailure();
       setCheckResult({ success: false, message: "Please enter a reservation code." });
       return;
     }
     if (code.length < 3) {
+      soundFeedback.playFailure();
       setCheckResult({ success: false, message: "Reservation code must be at least 3 characters." });
       return;
     }
@@ -336,9 +372,34 @@ export default function StaffPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }} className="animate-fade-up">
             {/* QR Scan + Manual */}
             <div className="glass" style={{ padding: "1.75rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-              <h2 style={{ fontWeight: 700, fontSize: "1rem", color: "rgba(255,255,255,0.85)", margin: 0 }}>
-                Check-in Student
-              </h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h2 style={{ fontWeight: 700, fontSize: "1rem", color: "rgba(255,255,255,0.85)", margin: 0 }}>
+                  Check-in Student
+                </h2>
+                <button
+                  type="button"
+                  onClick={toggleSound}
+                  id="sound-toggle-btn"
+                  title={soundEnabled ? "Audio alerts enabled (Click to mute)" : "Audio alerts muted (Click to enable)"}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    background: soundEnabled ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.06)",
+                    border: `1px solid ${soundEnabled ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.12)"}`,
+                    color: soundEnabled ? "#a5b4fc" : "rgba(255,255,255,0.45)",
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "0.625rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {soundEnabled ? <Volume2 size={14} color="#818cf8" /> : <VolumeX size={14} />}
+                  <span>{soundEnabled ? "Audio On" : "Audio Muted"}</span>
+                </button>
+              </div>
 
               {/* Scan button */}
               <button
@@ -390,42 +451,79 @@ export default function StaffPage() {
                 </button>
               </div>
 
-              {/* Result */}
+              {/* Result Notification */}
               {checkResult && (
                 <div
+                  role="alert"
                   className="animate-fade-up"
                   style={{
                     padding: "1.25rem",
                     borderRadius: "1rem",
                     background: checkResult.success
-                      ? "rgba(16,185,129,0.15)"
-                      : "rgba(244,63,94,0.15)",
-                    border: `1px solid ${checkResult.success ? "rgba(16,185,129,0.35)" : "rgba(244,63,94,0.35)"}`,
+                      ? "rgba(16,185,129,0.18)"
+                      : "rgba(244,63,94,0.18)",
+                    border: `1px solid ${checkResult.success ? "rgba(16,185,129,0.45)" : "rgba(244,63,94,0.45)"}`,
+                    boxShadow: checkResult.success
+                      ? "0 0 24px rgba(16,185,129,0.2)"
+                      : "0 0 24px rgba(244,63,94,0.2)",
                     display: "flex",
                     alignItems: "flex-start",
+                    justifyContent: "space-between",
                     gap: "0.875rem",
                   }}
                 >
-                  {checkResult.success ? (
-                    <CheckCircle2 size={24} color="#10b981" style={{ flexShrink: 0 }} />
-                  ) : (
-                    <XCircle size={24} color="#f43f5e" style={{ flexShrink: 0 }} />
-                  )}
-                  <div>
-                    <p style={{ fontWeight: 700, color: "white", margin: 0 }}>
-                      {checkResult.success ? "Check-in Successful!" : "Check-in Failed"}
-                    </p>
-                    <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.875rem", marginTop: "0.25rem" }}>
-                      {checkResult.message}
-                    </p>
-                    {checkResult.reservation && (
-                      <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.8125rem", marginTop: "0.375rem" }}>
-                        {MEAL_LABEL[checkResult.reservation.meal]} ·{" "}
-                        {checkResult.reservation.startTime} – {checkResult.reservation.endTime} ·{" "}
-                        {checkResult.reservation.studentId}
-                      </p>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.875rem" }}>
+                    {checkResult.success ? (
+                      <CheckCircle2 size={26} color="#10b981" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
+                    ) : (
+                      <XCircle size={26} color="#f43f5e" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
                     )}
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <p style={{ fontWeight: 800, color: "white", margin: 0, fontSize: "1.05rem" }}>
+                          {checkResult.success ? "Check-in Successful!" : "Check-in Failed"}
+                        </p>
+                        <span
+                          style={{
+                            fontSize: "0.7rem",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "0.375rem",
+                            background: checkResult.success ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)",
+                            color: checkResult.success ? "#6ee7b7" : "#fda4af",
+                          }}
+                        >
+                          {checkResult.success ? "CONFIRMED" : "REJECTED"}
+                        </span>
+                      </div>
+                      <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "0.875rem", marginTop: "0.3rem" }}>
+                        {checkResult.message}
+                      </p>
+                      {checkResult.reservation && (
+                        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.8125rem", marginTop: "0.375rem" }}>
+                          {MEAL_LABEL[checkResult.reservation.meal]} ·{" "}
+                          {checkResult.reservation.startTime} – {checkResult.reservation.endTime} ·{" "}
+                          {checkResult.reservation.studentId}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setCheckResult(null)}
+                    title="Dismiss alert"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "rgba(255,255,255,0.5)",
+                      cursor: "pointer",
+                      padding: "0.25rem",
+                      borderRadius: "0.375rem",
+                      lineHeight: 0,
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
               )}
             </div>
