@@ -360,8 +360,20 @@ export default function StaffPage() {
                         </p>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-                        <span className={res.status === "checked-in" ? "badge badge-checked" : "badge badge-active"}>
-                          {res.status === "checked-in" ? "Checked In" : "Active"}
+                        <span
+                          className={
+                            res.status === "checked-in"
+                              ? "badge badge-checked"
+                              : res.status === "cancelled"
+                              ? "badge badge-full"
+                              : "badge badge-active"
+                          }
+                        >
+                          {res.status === "checked-in"
+                            ? "Checked In"
+                            : res.status === "cancelled"
+                            ? "Cancelled"
+                            : "Active"}
                         </span>
                         {res.status === "active" && (
                           <button

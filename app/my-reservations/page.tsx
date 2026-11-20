@@ -95,7 +95,12 @@ export default function MyReservationsPage() {
     return latestActive ?? reservations[reservations.length - 1] ?? null;
   }, [reservations, selectedId]);
 
-  function removeReservation(id: string) {
+  async function removeReservation(id: string) {
+    try {
+      await fetch(`/api/reservations/${id}`, { method: "DELETE" });
+    } catch {
+      // server sync failure fallback
+    }
     try {
       const stored: Reservation[] = JSON.parse(
         localStorage.getItem("dormDineReservations") || "[]"
@@ -328,6 +333,7 @@ export default function MyReservationsPage() {
               {displayed.map((res) => {
                 const isSelected = selected?.id === res.id;
                 const isCheckedIn = res.status === "checked-in";
+                const isCancelled = res.status === "cancelled";
 
                 return (
                   <div
@@ -391,9 +397,15 @@ export default function MyReservationsPage() {
                           {MEAL_LABEL[res.meal]}
                         </p>
                         <span
-                          className={isCheckedIn ? "badge badge-checked" : "badge badge-active"}
+                          className={
+                            isCancelled
+                              ? "badge badge-full"
+                              : isCheckedIn
+                              ? "badge badge-checked"
+                              : "badge badge-active"
+                          }
                         >
-                          {isCheckedIn ? "✓ Checked In" : "● Active"}
+                          {isCancelled ? "✕ Cancelled" : isCheckedIn ? "✓ Checked In" : "● Active"}
                         </span>
                       </div>
                       <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.8125rem", margin: "0.2rem 0 0" }}>
