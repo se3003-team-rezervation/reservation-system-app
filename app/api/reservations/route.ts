@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
-import { generateReservationId } from "@/lib/mockStore";
-import { getDb, saveDb, withSlotLock } from "@/lib/store";
-import { Reservation } from "@/lib/types";
+import type { NextRequest } from "next/server";
+import { generateReservationId } from "../../../lib/mockStore.ts";
+import { getDb, saveDb, withSlotLock } from "../../../lib/store.ts";
+import type { Reservation } from "../../../lib/types.ts";
 
 export async function GET() {
   const db = await getDb();
