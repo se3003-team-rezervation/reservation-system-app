@@ -6,6 +6,7 @@ import os from "node:os";
 
 // Configure isolated store path for test
 const testStoreDir = await fs.mkdtemp(path.join(os.tmpdir(), "dormdine-api-test-"));
+process.env.DORMDINE_STORAGE = "file";
 process.env.DORM_DINE_STORE_PATH = path.join(testStoreDir, "test-dormdine.json");
 
 const { getDb, saveDb, resetDb } = await import("../lib/store.ts");

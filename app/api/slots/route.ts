@@ -1,12 +1,27 @@
-import { NextRequest } from "next/server";
-import { getDb, saveDb } from "@/lib/store";
-import { Meal, TimeSlot } from "@/lib/types";
+import type { NextRequest } from "next/server";
+import {
+  getDb,
+  saveDb,
+  isPostgresConfigured,
+  pgGetSlots,
+  pgCreateSlot,
+} from "../../../lib/store.ts";
+import type { Meal, TimeSlot } from "../../../lib/types.ts";
 
 export async function GET(request: NextRequest) {
-  const meal = request.nextUrl.searchParams.get("meal") as Meal | null;
-  const includeDisabled = request.nextUrl.searchParams.get("all") === "true";
-  const db = await getDb();
+  const url = new URL(request.url);
+  const meal = url.searchParams.get("meal") as Meal | null;
+  const includeDisabled = url.searchParams.get("all") === "true";
 
+  if (isPostgresConfigured()) {
+    const slots = await pgGetSlots({
+      meal: meal ?? undefined,
+      includeDisabled,
+    });
+    return Response.json(slots);
+  }
+
+  const db = await getDb();
   let result = db.slots;
   if (meal) {
     result = result.filter((s) => s.meal === meal);
@@ -30,7 +45,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await getDb();
     const id = `${meal[0]}${Date.now().toString(36)}`;
     const newSlot: TimeSlot = {
       id,
@@ -42,6 +56,12 @@ export async function POST(request: NextRequest) {
       disabled: false,
     };
 
+    if (isPostgresConfigured()) {
+      const created = await pgCreateSlot(newSlot);
+      return Response.json(created, { status: 201 });
+    }
+
+    const db = await getDb();
     db.slots.push(newSlot);
     await saveDb();
 

@@ -1,6 +1,12 @@
 import type { NextRequest } from "next/server";
 import { generateReservationId } from "../../../lib/mockStore.ts";
-import { getDb, saveDb, withSlotLock } from "../../../lib/store.ts";
+import {
+  getDb,
+  saveDb,
+  withSlotLock,
+  isPostgresConfigured,
+  pgCreateReservationTx,
+} from "../../../lib/store.ts";
 import type { Reservation } from "../../../lib/types.ts";
 
 export async function GET() {
@@ -16,7 +22,22 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Acquire concurrency lock on slotId to prevent race conditions & overbooking
+  // ─── PostgreSQL Atomic Transaction Flow ─────────────────────────────────────
+  if (isPostgresConfigured()) {
+    const result = await pgCreateReservationTx({
+      studentName,
+      studentId,
+      slotId,
+    });
+
+    if (!result.success) {
+      return Response.json({ error: result.error }, { status: result.status });
+    }
+
+    return Response.json(result.data, { status: 201 });
+  }
+
+  // ─── Non-Postgres Fallback Flow ──────────────────────────────────────────────
   return await withSlotLock(slotId, async () => {
     const db = await getDb();
     const slot = db.slots.find((s) => s.id === slotId);

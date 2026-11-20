@@ -1,11 +1,46 @@
 import type { NextRequest } from "next/server";
-import { getDb, saveDb, withSlotLock } from "../../../../lib/store.ts";
+import {
+  getDb,
+  saveDb,
+  withSlotLock,
+  isPostgresConfigured,
+  pgCancelReservationTx,
+  pgCheckInReservationTx,
+  pgGetReservationById,
+} from "../../../../lib/store.ts";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  let body: { status?: "checked-in" | "cancelled" } = {};
+  try {
+    body = await request.json();
+  } catch {
+    // If no body provided, defaults to check-in
+  }
+
+  const targetStatus = body.status ?? "checked-in";
+
+  // ─── PostgreSQL Transaction Flow ───────────────────────────────────────────
+  if (isPostgresConfigured()) {
+    if (targetStatus === "cancelled") {
+      const result = await pgCancelReservationTx(id);
+      if (!result.success) {
+        return Response.json({ error: result.error }, { status: result.status });
+      }
+      return Response.json(result.data);
+    }
+
+    const result = await pgCheckInReservationTx(id);
+    if (!result.success) {
+      return Response.json({ error: result.error }, { status: result.status });
+    }
+    return Response.json(result.data);
+  }
+
+  // ─── Non-Postgres Fallback Flow ────────────────────────────────────────────
   const normId = id.trim().toUpperCase();
   const db = await getDb();
   const reservation = db.reservations.find((r) => {
@@ -20,15 +55,6 @@ export async function PATCH(
   if (!reservation) {
     return Response.json({ error: "Reservation not found" }, { status: 404 });
   }
-
-  let body: { status?: "checked-in" | "cancelled" } = {};
-  try {
-    body = await request.json();
-  } catch {
-    // If no body provided, defaults to check-in
-  }
-
-  const targetStatus = body.status ?? "checked-in";
 
   if (targetStatus === "cancelled") {
     if (reservation.status === "cancelled") {
@@ -66,6 +92,21 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // ─── PostgreSQL Transaction Flow ───────────────────────────────────────────
+  if (isPostgresConfigured()) {
+    const result = await pgCancelReservationTx(id);
+    if (!result.success) {
+      return Response.json({ error: result.error }, { status: result.status });
+    }
+    return Response.json({
+      success: true,
+      message: "Reservation cancelled and quota released",
+      reservation: result.data,
+    });
+  }
+
+  // ─── Non-Postgres Fallback Flow ────────────────────────────────────────────
   const normId = id.trim().toUpperCase();
   const db = await getDb();
   const reservation = db.reservations.find((r) => {
@@ -110,6 +151,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // ─── PostgreSQL Flow ───────────────────────────────────────────────────────
+  if (isPostgresConfigured()) {
+    const reservation = await pgGetReservationById(id);
+    if (!reservation) {
+      return Response.json({ error: "Reservation not found" }, { status: 404 });
+    }
+    return Response.json(reservation);
+  }
+
+  // ─── Non-Postgres Fallback Flow ────────────────────────────────────────────
   const normId = id.trim().toUpperCase();
   const db = await getDb();
   const reservation = db.reservations.find((r) => {

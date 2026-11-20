@@ -1,20 +1,36 @@
-import { NextRequest } from "next/server";
-import { getDb, saveDb, withSlotLock } from "@/lib/store";
+import type { NextRequest } from "next/server";
+import {
+  getDb,
+  saveDb,
+  withSlotLock,
+  isPostgresConfigured,
+  pgUpdateSlot,
+  pgDeleteSlot,
+} from "../../../../lib/store.ts";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const db = await getDb();
-  const slot = db.slots.find((s) => s.id === id);
-
-  if (!slot) {
-    return Response.json({ error: "Slot not found" }, { status: 404 });
-  }
 
   try {
     const body = await request.json();
+
+    if (isPostgresConfigured()) {
+      const updated = await pgUpdateSlot(id, body);
+      if (!updated) {
+        return Response.json({ error: "Slot not found" }, { status: 404 });
+      }
+      return Response.json(updated);
+    }
+
+    const db = await getDb();
+    const slot = db.slots.find((s) => s.id === id);
+
+    if (!slot) {
+      return Response.json({ error: "Slot not found" }, { status: 404 });
+    }
 
     return await withSlotLock(id, async () => {
       if (typeof body.capacity === "number" && body.capacity > 0) {
@@ -43,6 +59,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  if (isPostgresConfigured()) {
+    const removed = await pgDeleteSlot(id);
+    if (!removed) {
+      return Response.json({ error: "Slot not found" }, { status: 404 });
+    }
+    return Response.json({ success: true, removed });
+  }
+
   const db = await getDb();
   const index = db.slots.findIndex((s) => s.id === id);
 
