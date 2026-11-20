@@ -26,8 +26,10 @@ import {
   LogOut,
   ShieldCheck,
   ArrowLeft,
+  TrendingUp,
 } from "lucide-react";
 import { soundFeedback } from "@/lib/audio";
+import OccupancyAnalytics from "@/components/OccupancyAnalytics";
 
 const QRScanner = dynamic(() => import("@/components/QRScanner"), {
   ssr: false,
@@ -59,7 +61,7 @@ export default function StaffPage() {
   const [manualCode, setManualCode] = useState("");
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "checkin" | "slots">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "checkin" | "slots">("overview");
   const [processing, setProcessing] = useState(false);
   const soundEnabled = useSyncExternalStore(
     soundFeedback.subscribe,
@@ -313,7 +315,7 @@ export default function StaffPage() {
   const checkedInCount = reservations.filter((r) => r.status === "checked-in").length;
   const totalBooked = slots.reduce((s, slot) => s + slot.booked, 0);
 
-  const tabStyle = (tab: "overview" | "checkin" | "slots") => ({
+  const tabStyle = (tab: "overview" | "analytics" | "checkin" | "slots") => ({
     padding: "0.5rem 1.25rem",
     borderRadius: "0.625rem",
     fontWeight: 600,
@@ -585,10 +587,14 @@ export default function StaffPage() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: "0.375rem" }}>
+        <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
           <button onClick={() => setActiveTab("overview")} style={tabStyle("overview")} id="tab-overview">
             <BarChart3 size={13} style={{ display: "inline", marginRight: "0.35rem" }} />
             Slot Overview
+          </button>
+          <button onClick={() => setActiveTab("analytics")} style={tabStyle("analytics")} id="tab-analytics">
+            <TrendingUp size={13} style={{ display: "inline", marginRight: "0.35rem" }} />
+            Occupancy Analytics
           </button>
           <button onClick={() => setActiveTab("checkin")} style={tabStyle("checkin")} id="tab-checkin">
             <Camera size={13} style={{ display: "inline", marginRight: "0.35rem" }} />
@@ -611,6 +617,11 @@ export default function StaffPage() {
               <SlotOccupancyBar slots={slots} />
             )}
           </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === "analytics" && (
+          <OccupancyAnalytics slots={slots} reservations={reservations} />
         )}
 
         {/* Check-in Tab */}
