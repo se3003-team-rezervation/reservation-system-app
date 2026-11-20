@@ -43,7 +43,6 @@ export default function StaffPage() {
   const [processing, setProcessing] = useState(false);
 
   const fetchData = useCallback(async () => {
-    setLoadingSlots(true);
     try {
       const [slotsRes, resRes] = await Promise.all([
         fetch("/api/slots"),
@@ -61,6 +60,11 @@ export default function StaffPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleRefresh = () => {
+    setLoadingSlots(true);
+    fetchData();
+  };
 
   async function handleCheckIn(reservationId: string) {
     setProcessing(true);
@@ -159,7 +163,7 @@ export default function StaffPage() {
           </div>
           <button
             className="btn-secondary"
-            onClick={fetchData}
+            onClick={handleRefresh}
             id="refresh-btn"
             style={{ padding: "0.5rem 1rem", fontSize: "0.875rem" }}
           >
@@ -387,7 +391,6 @@ export default function StaffPage() {
           </div>
         )}
       </main>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

@@ -57,6 +57,7 @@ function ReserveContent() {
         const existing = JSON.parse(localStorage.getItem("dormDineReservations") || "[]");
         existing.push(data);
         localStorage.setItem("dormDineReservations", JSON.stringify(existing));
+        window.dispatchEvent(new Event("dormDineReservationsChange"));
       }
     } catch {
       setError("Network error. Please try again.");
@@ -178,8 +179,6 @@ function ReserveContent() {
             {submitting ? "Reserving…" : "Confirm Reservation"}
           </button>
         )}
-
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </main>
     </div>
   );
@@ -190,7 +189,6 @@ export default function ReservePage() {
     <Suspense fallback={
       <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Loader2 size={40} color="#818cf8" style={{ animation: "spin 1s linear infinite" }} />
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     }>
       <ReserveContent />

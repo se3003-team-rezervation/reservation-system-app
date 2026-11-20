@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme {
+:root {
   --color-brand-50: #f0f4ff;
   --color-brand-100: #e0eaff;
   --color-brand-200: #c7d7fe;
@@ -138,6 +138,12 @@ body {
 }
 .animate-fade-up {
   animation: fadeUp 0.4s ease forwards;
+}
+
+/* Spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 /* Pulse ring for success */

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import QRDisplay from "@/components/QRDisplay";
 import { Reservation } from "@/lib/types";
@@ -35,43 +35,85 @@ const MEAL_GRADIENT: Record<string, string> = {
 
 type Tab = "active" | "all";
 
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("dormDineReservationsChange", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("dormDineReservationsChange", callback);
+  };
+}
+
+function getReservationsSnapshot(): string {
+  return localStorage.getItem("dormDineReservations") || "[]";
+}
+
+const SERVER_SNAPSHOT = "[]";
+function getServerSnapshot(): string {
+  return SERVER_SNAPSHOT;
+}
+
+function useIsMounted() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+}
+
 export default function MyReservationsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [selected, setSelected] = useState<Reservation | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsMounted();
+  const rawReservations = useSyncExternalStore(
+    subscribe,
+    getReservationsSnapshot,
+    getServerSnapshot
+  );
+
+  const reservations: Reservation[] = useMemo(() => {
+    try {
+      return JSON.parse(rawReservations);
+    } catch {
+      return [];
+    }
+  }, [rawReservations]);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("active");
   const [showQR, setShowQR] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    const stored: Reservation[] = JSON.parse(
-      localStorage.getItem("dormDineReservations") || "[]"
-    );
-    setReservations(stored);
-    // Auto-select the most recent active reservation
-    const latestActive = [...stored]
-      .reverse()
-      .find((r) => r.status === "active");
-    if (latestActive) {
-      setSelected(latestActive);
-    } else if (stored.length > 0) {
-      setSelected(stored[stored.length - 1]);
+  const activeReservations = useMemo(
+    () => reservations.filter((r) => r.status === "active"),
+    [reservations]
+  );
+
+  const selected = useMemo(() => {
+    if (selectedId) {
+      const found = reservations.find((r) => r.id === selectedId);
+      if (found) return found;
     }
-  }, []);
+    const latestActive = [...reservations].reverse().find((r) => r.status === "active");
+    return latestActive ?? reservations[reservations.length - 1] ?? null;
+  }, [reservations, selectedId]);
 
   function removeReservation(id: string) {
-    const updated = reservations.filter((r) => r.id !== id);
-    setReservations(updated);
-    localStorage.setItem("dormDineReservations", JSON.stringify(updated));
-    if (selected?.id === id) {
-      const next = updated.find((r) => r.status === "active") ?? updated[updated.length - 1] ?? null;
-      setSelected(next);
+    try {
+      const stored: Reservation[] = JSON.parse(
+        localStorage.getItem("dormDineReservations") || "[]"
+      );
+      const updated = stored.filter((r) => r.id !== id);
+      localStorage.setItem("dormDineReservations", JSON.stringify(updated));
+      window.dispatchEvent(new Event("dormDineReservationsChange"));
+      if (selected?.id === id) {
+        const next = updated.find((r) => r.status === "active") ?? updated[updated.length - 1] ?? null;
+        setSelectedId(next ? next.id : null);
+      }
+    } catch {
+      // ignore
     }
   }
 
   if (!mounted) return null;
 
-  const activeReservations = reservations.filter((r) => r.status === "active");
   const displayed = tab === "active" ? activeReservations : reservations;
 
   const tabStyle = (t: Tab) => ({
@@ -288,12 +330,22 @@ export default function MyReservationsPage() {
                 const isCheckedIn = res.status === "checked-in";
 
                 return (
-                  <button
+                  <div
                     key={res.id}
                     id={`reservation-item-${res.id}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
-                      setSelected(res);
+                      setSelectedId(res.id);
                       setShowQR(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedId(res.id);
+                        setShowQR(true);
+                      }
                     }}
                     style={{
                       display: "flex",
@@ -311,6 +363,7 @@ export default function MyReservationsPage() {
                       textAlign: "left",
                       transition: "all 0.2s ease",
                       width: "100%",
+                      boxSizing: "border-box",
                     }}
                   >
                     {/* Meal icon */}
@@ -363,10 +416,19 @@ export default function MyReservationsPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
                       <button
                         id={`show-qr-${res.id}`}
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelected(res);
+                          setSelectedId(res.id);
                           setShowQR(true);
+                        }}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedId(res.id);
+                            setShowQR(true);
+                          }
                         }}
                         aria-label="Show QR code"
                         title="Show QR"
@@ -388,9 +450,17 @@ export default function MyReservationsPage() {
                       </button>
                       <button
                         id={`remove-reservation-${res.id}`}
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           removeReservation(res.id);
+                        }}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            removeReservation(res.id);
+                          }
                         }}
                         aria-label="Remove reservation"
                         title="Remove"
@@ -412,7 +482,7 @@ export default function MyReservationsPage() {
                       </button>
                       <ChevronRight size={15} color="rgba(255,255,255,0.2)" />
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
