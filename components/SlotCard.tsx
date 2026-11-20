@@ -9,7 +9,7 @@ interface SlotCardProps {
 }
 
 export default function SlotCard({ slot, selected, onClick }: SlotCardProps) {
-  const isFull = slot.booked >= slot.capacity;
+  const isFull = slot.booked >= slot.capacity || Boolean(slot.disabled);
   const pct = Math.round((slot.booked / slot.capacity) * 100);
   const available = slot.capacity - slot.booked;
 
@@ -62,7 +62,9 @@ export default function SlotCard({ slot, selected, onClick }: SlotCardProps) {
             {slot.startTime} – {slot.endTime}
           </span>
         </div>
-        {isFull ? (
+        {slot.disabled ? (
+          <span className="badge badge-full">Disabled</span>
+        ) : isFull ? (
           <span className="badge badge-full">Full</span>
         ) : selected ? (
           <span className="badge badge-active">Selected</span>
@@ -94,7 +96,7 @@ export default function SlotCard({ slot, selected, onClick }: SlotCardProps) {
             color: isFull ? "#fda4af" : "#6ee7b7",
           }}
         >
-          {isFull ? "No spots left" : `${available} available`}
+          {slot.disabled ? "Disabled" : isFull ? "No spots left" : `${available} available`}
         </span>
       </div>
     </button>

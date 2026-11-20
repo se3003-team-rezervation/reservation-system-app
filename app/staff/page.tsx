@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import SlotOccupancyBar from "@/components/SlotOccupancyBar";
 import dynamic from "next/dynamic";
-import { TimeSlot, Reservation } from "@/lib/types";
+import { TimeSlot, Reservation, Meal } from "@/lib/types";
 import {
   Camera,
   Search,
@@ -13,6 +13,10 @@ import {
   BarChart3,
   Loader2,
   RefreshCw,
+  Sliders,
+  Plus,
+  Trash2,
+  Power,
 } from "lucide-react";
 
 const QRScanner = dynamic(() => import("@/components/QRScanner"), {
@@ -39,13 +43,21 @@ export default function StaffPage() {
   const [manualCode, setManualCode] = useState("");
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "checkin">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "checkin" | "slots">("overview");
   const [processing, setProcessing] = useState(false);
+
+  // New slot form state
+  const [newMeal, setNewMeal] = useState<Meal>("breakfast");
+  const [newStart, setNewStart] = useState("");
+  const [newEnd, setNewEnd] = useState("");
+  const [newCapacity, setNewCapacity] = useState(30);
+  const [slotActionLoading, setSlotActionLoading] = useState(false);
+  const [slotFeedback, setSlotFeedback] = useState<{ text: string; error?: boolean } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
       const [slotsRes, resRes] = await Promise.all([
-        fetch("/api/slots"),
+        fetch("/api/slots?all=true"),
         fetch("/api/reservations"),
       ]);
       const slotsData = await slotsRes.json();
@@ -104,11 +116,93 @@ export default function StaffPage() {
     setManualCode("");
   }
 
+  async function handleCreateSlot(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newStart.trim() || !newEnd.trim() || newCapacity <= 0) {
+      setSlotFeedback({ text: "Please enter valid start time, end time, and capacity.", error: true });
+      return;
+    }
+    setSlotActionLoading(true);
+    try {
+      const res = await fetch("/api/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meal: newMeal,
+          startTime: newStart.trim(),
+          endTime: newEnd.trim(),
+          capacity: Number(newCapacity),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSlotFeedback({ text: data.error || "Failed to create slot", error: true });
+      } else {
+        setSlotFeedback({ text: `Slot created successfully for ${MEAL_LABEL[newMeal]}!`, error: false });
+        setNewStart("");
+        setNewEnd("");
+        await fetchData();
+      }
+    } catch {
+      setSlotFeedback({ text: "Network error creating slot", error: true });
+    } finally {
+      setSlotActionLoading(false);
+    }
+  }
+
+  async function handleToggleDisable(slotId: string, currentDisabled?: boolean) {
+    setSlotActionLoading(true);
+    try {
+      const res = await fetch(`/api/slots/${slotId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabled: !currentDisabled }),
+      });
+      if (res.ok) {
+        setSlotFeedback({ text: `Slot status updated (${!currentDisabled ? "Disabled" : "Enabled"}).`, error: false });
+        await fetchData();
+      }
+    } catch {
+      setSlotFeedback({ text: "Failed to update slot status", error: true });
+    } finally {
+      setSlotActionLoading(false);
+    }
+  }
+
+  async function handleUpdateCapacity(slotId: string, newCap: number) {
+    if (newCap <= 0) return;
+    try {
+      const res = await fetch(`/api/slots/${slotId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ capacity: newCap }),
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch {
+      // silent
+    }
+  }
+
+  async function handleDeleteSlot(slotId: string) {
+    if (!confirm("Are you sure you want to delete this time slot?")) return;
+    try {
+      const res = await fetch(`/api/slots/${slotId}`, { method: "DELETE" });
+      if (res.ok) {
+        setSlotFeedback({ text: "Slot deleted successfully.", error: false });
+        await fetchData();
+      }
+    } catch {
+      setSlotFeedback({ text: "Failed to delete slot", error: true });
+    }
+  }
+
   const activeCount = reservations.filter((r) => r.status === "active").length;
   const checkedInCount = reservations.filter((r) => r.status === "checked-in").length;
   const totalBooked = slots.reduce((s, slot) => s + slot.booked, 0);
 
-  const tabStyle = (tab: "overview" | "checkin") => ({
+  const tabStyle = (tab: "overview" | "checkin" | "slots") => ({
     padding: "0.5rem 1.25rem",
     borderRadius: "0.625rem",
     fontWeight: 600,
@@ -209,6 +303,10 @@ export default function StaffPage() {
           <button onClick={() => setActiveTab("checkin")} style={tabStyle("checkin")} id="tab-checkin">
             <Camera size={13} style={{ display: "inline", marginRight: "0.35rem" }} />
             Check-in
+          </button>
+          <button onClick={() => setActiveTab("slots")} style={tabStyle("slots")} id="tab-slots">
+            <Sliders size={13} style={{ display: "inline", marginRight: "0.35rem" }} />
+            Slot Management
           </button>
         </div>
 
@@ -399,6 +497,267 @@ export default function StaffPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Slot Management Tab */}
+        {activeTab === "slots" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }} className="animate-fade-up">
+            {/* Create New Slot Card */}
+            <div className="glass" style={{ padding: "1.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <Plus size={18} color="#818cf8" />
+                <h2 style={{ fontWeight: 700, fontSize: "1.125rem", color: "white", margin: 0 }}>
+                  Create New Time Slot
+                </h2>
+              </div>
+              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.85rem", margin: "0 0 1.25rem" }}>
+                Add new dining slots dynamically without code changes.
+              </p>
+
+              <form onSubmit={handleCreateSlot} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.875rem", alignItems: "end" }}>
+                <div>
+                  <label htmlFor="slot-meal-select" style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.3rem" }}>Meal</label>
+                  <select
+                    id="slot-meal-select"
+                    value={newMeal}
+                    onChange={(e) => setNewMeal(e.target.value as Meal)}
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "0.625rem",
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      color: "white",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    <option value="breakfast" style={{ background: "#1e1b4b" }}>Breakfast</option>
+                    <option value="lunch" style={{ background: "#1e1b4b" }}>Lunch</option>
+                    <option value="dinner" style={{ background: "#1e1b4b" }}>Dinner</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="slot-start-time" style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.3rem" }}>Start Time</label>
+                  <input
+                    id="slot-start-time"
+                    type="time"
+                    value={newStart}
+                    onChange={(e) => setNewStart(e.target.value)}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "0.625rem",
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      color: "white",
+                      fontSize: "0.875rem",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="slot-end-time" style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.3rem" }}>End Time</label>
+                  <input
+                    id="slot-end-time"
+                    type="time"
+                    value={newEnd}
+                    onChange={(e) => setNewEnd(e.target.value)}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "0.625rem",
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      color: "white",
+                      fontSize: "0.875rem",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="slot-capacity" style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.3rem" }}>Capacity</label>
+                  <input
+                    id="slot-capacity"
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={newCapacity}
+                    onChange={(e) => setNewCapacity(Number(e.target.value))}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "0.625rem",
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      color: "white",
+                      fontSize: "0.875rem",
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={slotActionLoading}
+                  className="btn-primary"
+                  id="add-slot-submit-btn"
+                  style={{ padding: "0.6rem 1rem", fontSize: "0.875rem", height: "fit-content" }}
+                >
+                  <Plus size={15} />
+                  Add Slot
+                </button>
+              </form>
+
+              {slotFeedback && (
+                <p
+                  style={{
+                    color: slotFeedback.error ? "#fda4af" : "#6ee7b7",
+                    fontSize: "0.8125rem",
+                    marginTop: "0.75rem",
+                    marginBottom: 0,
+                  }}
+                >
+                  {slotFeedback.text}
+                </p>
+              )}
+            </div>
+
+            {/* Existing Slots List & Capacity Controls */}
+            <div className="glass" style={{ padding: "1.75rem" }}>
+              <h2 style={{ fontWeight: 700, fontSize: "1.125rem", color: "white", margin: "0 0 1rem" }}>
+                Current Slots & Capacity Controls
+              </h2>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                {(["breakfast", "lunch", "dinner"] as Meal[]).map((mealKey) => {
+                  const mealSlots = slots.filter((s) => s.meal === mealKey);
+                  return (
+                    <div key={mealKey}>
+                      <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "rgba(255,255,255,0.85)", marginBottom: "0.5rem" }}>
+                        {MEAL_LABEL[mealKey]} ({mealSlots.length} slots)
+                      </h3>
+
+                      {mealSlots.length === 0 ? (
+                        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.8rem", margin: "0.25rem 0" }}>
+                          No slots configured for this meal.
+                        </p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          {mealSlots.map((slot) => {
+                            const isDisabled = Boolean(slot.disabled);
+                            return (
+                              <div
+                                key={slot.id}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  padding: "0.75rem 1rem",
+                                  borderRadius: "0.75rem",
+                                  background: isDisabled ? "rgba(244,63,94,0.06)" : "rgba(255,255,255,0.04)",
+                                  border: isDisabled ? "1px solid rgba(244,63,94,0.25)" : "1px solid rgba(255,255,255,0.08)",
+                                  flexWrap: "wrap",
+                                  gap: "0.75rem",
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                    <span style={{ fontWeight: 700, fontSize: "0.9375rem", color: "white" }}>
+                                      {slot.startTime} – {slot.endTime}
+                                    </span>
+                                    <span className={isDisabled ? "badge badge-full" : "badge badge-active"}>
+                                      {isDisabled ? "Disabled" : "Active"}
+                                    </span>
+                                  </div>
+                                  <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.8rem", margin: "0.2rem 0 0" }}>
+                                    {slot.booked} / {slot.capacity} booked &nbsp;·&nbsp; ID: {slot.id}
+                                  </p>
+                                </div>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+                                  {/* Capacity Adjusters */}
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                                    <label htmlFor={`cap-${slot.id}`} style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.45)" }}>Cap:</label>
+                                    <input
+                                      id={`cap-${slot.id}`}
+                                      type="number"
+                                      min="1"
+                                      max="500"
+                                      defaultValue={slot.capacity}
+                                      onBlur={(e) => handleUpdateCapacity(slot.id, Number(e.target.value))}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          (e.target as HTMLInputElement).blur();
+                                        }
+                                      }}
+                                      style={{
+                                        width: 55,
+                                        padding: "0.25rem 0.4rem",
+                                        borderRadius: "0.375rem",
+                                        background: "rgba(255,255,255,0.08)",
+                                        border: "1px solid rgba(255,255,255,0.15)",
+                                        color: "white",
+                                        fontSize: "0.8125rem",
+                                        textAlign: "center",
+                                      }}
+                                    />
+                                  </div>
+
+                                  {/* Toggle Disable Button */}
+                                  <button
+                                    id={`toggle-disable-${slot.id}`}
+                                    onClick={() => handleToggleDisable(slot.id, slot.disabled)}
+                                    title={isDisabled ? "Enable slot" : "Disable slot"}
+                                    style={{
+                                      padding: "0.35rem 0.65rem",
+                                      borderRadius: "0.5rem",
+                                      background: isDisabled ? "rgba(16,185,129,0.18)" : "rgba(244,63,94,0.15)",
+                                      border: isDisabled ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(244,63,94,0.3)",
+                                      color: isDisabled ? "#6ee7b7" : "#fda4af",
+                                      fontSize: "0.75rem",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "0.3rem",
+                                    }}
+                                  >
+                                    <Power size={12} />
+                                    {isDisabled ? "Enable" : "Disable"}
+                                  </button>
+
+                                  {/* Delete Button */}
+                                  <button
+                                    id={`delete-slot-${slot.id}`}
+                                    onClick={() => handleDeleteSlot(slot.id)}
+                                    title="Delete slot"
+                                    style={{
+                                      padding: "0.35rem 0.5rem",
+                                      borderRadius: "0.5rem",
+                                      background: "rgba(255,255,255,0.06)",
+                                      border: "1px solid rgba(255,255,255,0.12)",
+                                      color: "rgba(255,255,255,0.5)",
+                                      fontSize: "0.75rem",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

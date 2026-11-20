@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
     if (!slot) {
       return Response.json({ error: "Slot not found" }, { status: 404 });
     }
+    if (slot.disabled) {
+      return Response.json({ error: "This slot is currently disabled" }, { status: 400 });
+    }
     if (slot.booked >= slot.capacity) {
       return Response.json({ error: "Slot is full" }, { status: 409 });
     }

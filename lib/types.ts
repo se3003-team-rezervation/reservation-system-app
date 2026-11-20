@@ -7,6 +7,7 @@ export interface TimeSlot {
   endTime: string;   // e.g. "12:30"
   capacity: number;
   booked: number;
+  disabled?: boolean;
 }
 
 export interface Reservation {
