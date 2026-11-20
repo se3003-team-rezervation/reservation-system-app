@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { generateReservationId } from "@/lib/mockStore";
-import { getDb, saveDb } from "@/lib/store";
+import { getDb, saveDb, withSlotLock } from "@/lib/store";
 import { Reservation } from "@/lib/types";
 
 export async function GET() {
@@ -16,47 +16,50 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const db = await getDb();
-  const slot = db.slots.find((s) => s.id === slotId);
-  if (!slot) {
-    return Response.json({ error: "Slot not found" }, { status: 404 });
-  }
-  if (slot.booked >= slot.capacity) {
-    return Response.json({ error: "Slot is full" }, { status: 409 });
-  }
+  // Acquire concurrency lock on slotId to prevent race conditions & overbooking
+  return await withSlotLock(slotId, async () => {
+    const db = await getDb();
+    const slot = db.slots.find((s) => s.id === slotId);
+    if (!slot) {
+      return Response.json({ error: "Slot not found" }, { status: 404 });
+    }
+    if (slot.booked >= slot.capacity) {
+      return Response.json({ error: "Slot is full" }, { status: 409 });
+    }
 
-  // Check if student already has an active reservation for this meal/date
-  const today = new Date().toISOString().split("T")[0];
-  const existing = db.reservations.find(
-    (r) =>
-      r.studentId === studentId &&
-      r.meal === slot.meal &&
-      r.date === today &&
-      r.status === "active"
-  );
-  if (existing) {
-    return Response.json(
-      { error: "You already have a reservation for this meal" },
-      { status: 409 }
+    // Check if student already has an active reservation for this meal/date
+    const today = new Date().toISOString().split("T")[0];
+    const existing = db.reservations.find(
+      (r) =>
+        r.studentId === studentId &&
+        r.meal === slot.meal &&
+        r.date === today &&
+        r.status === "active"
     );
-  }
+    if (existing) {
+      return Response.json(
+        { error: "You already have a reservation for this meal" },
+        { status: 409 }
+      );
+    }
 
-  const newReservation: Reservation = {
-    id: generateReservationId(),
-    studentName,
-    studentId,
-    slotId,
-    meal: slot.meal,
-    startTime: slot.startTime,
-    endTime: slot.endTime,
-    date: today,
-    status: "active",
-    createdAt: new Date().toISOString(),
-  };
+    const newReservation: Reservation = {
+      id: generateReservationId(),
+      studentName,
+      studentId,
+      slotId,
+      meal: slot.meal,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      date: today,
+      status: "active",
+      createdAt: new Date().toISOString(),
+    };
 
-  db.reservations.push(newReservation);
-  slot.booked += 1;
-  await saveDb();
+    db.reservations.push(newReservation);
+    slot.booked += 1;
+    await saveDb();
 
-  return Response.json(newReservation, { status: 201 });
+    return Response.json(newReservation, { status: 201 });
+  });
 }

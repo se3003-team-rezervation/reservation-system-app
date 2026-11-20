@@ -109,3 +109,28 @@ export async function resetDb(state?: DbState): Promise<DbState> {
   await writeToDisk(next);
   return next;
 }
+
+/**
+ * Concurrency lock handling to prevent slot overbooking.
+ * Serializes operations for a given slot ID to guarantee atomic check-and-reserve.
+ */
+const slotLocks = new Map<string, Promise<void>>();
+
+export async function withSlotLock<T>(slotId: string, fn: () => Promise<T>): Promise<T> {
+  const previousLock = slotLocks.get(slotId) ?? Promise.resolve();
+  let release: () => void;
+  const currentLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  slotLocks.set(slotId, currentLock);
+
+  try {
+    await previousLock;
+    return await fn();
+  } finally {
+    release!();
+    if (slotLocks.get(slotId) === currentLock) {
+      slotLocks.delete(slotId);
+    }
+  }
+}
