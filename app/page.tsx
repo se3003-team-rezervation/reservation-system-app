@@ -11,8 +11,22 @@ const MEALS: Meal[] = ["breakfast", "lunch", "dinner"];
 export default function HomePage() {
   const router = useRouter();
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
-  const [studentName, setStudentName] = useState("");
-  const [studentId, setStudentId] = useState("");
+  const [studentName, setStudentName] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const saved = localStorage.getItem("dormdine_student");
+      if (saved) return JSON.parse(saved).name || "";
+    } catch {}
+    return "";
+  });
+  const [studentId, setStudentId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const saved = localStorage.getItem("dormdine_student");
+      if (saved) return JSON.parse(saved).id || "";
+    } catch {}
+    return "";
+  });
   const [error, setError] = useState("");
 
   function handleContinue() {
@@ -20,8 +34,14 @@ export default function HomePage() {
     if (!studentId.trim()) { setError("Please enter your Student ID."); return; }
     if (!selectedMeal) { setError("Please select a meal."); return; }
     setError("");
+    try {
+      localStorage.setItem(
+        "dormdine_student",
+        JSON.stringify({ name: studentName.trim(), id: studentId.trim().toUpperCase() })
+      );
+    } catch {}
     router.push(
-      `/reserve?meal=${selectedMeal}&name=${encodeURIComponent(studentName.trim())}&sid=${encodeURIComponent(studentId.trim())}`
+      `/reserve?meal=${selectedMeal}&name=${encodeURIComponent(studentName.trim())}&sid=${encodeURIComponent(studentId.trim().toUpperCase())}`
     );
   }
 

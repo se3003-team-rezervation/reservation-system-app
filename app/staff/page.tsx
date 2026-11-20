@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import SlotOccupancyBar from "@/components/SlotOccupancyBar";
 import dynamic from "next/dynamic";
@@ -20,6 +21,11 @@ import {
   Volume2,
   VolumeX,
   X,
+  Lock,
+  KeyRound,
+  LogOut,
+  ShieldCheck,
+  ArrowLeft,
 } from "lucide-react";
 import { soundFeedback } from "@/lib/audio";
 
@@ -41,6 +47,12 @@ const MEAL_LABEL: Record<string, string> = {
 };
 
 export default function StaffPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -63,6 +75,58 @@ export default function StaffPage() {
     }
   };
 
+  // Check initial staff auth state
+  useEffect(() => {
+    fetch("/api/auth/staff")
+      .then((r) => r.json())
+      .then((d) => {
+        setIsAuthenticated(Boolean(d.authenticated));
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+      })
+      .finally(() => {
+        setCheckingAuth(false);
+      });
+  }, []);
+
+  async function handlePinSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!pinInput.trim()) {
+      setPinError("Please enter your staff PIN.");
+      return;
+    }
+    setAuthLoading(true);
+    setPinError("");
+    try {
+      const res = await fetch("/api/auth/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsAuthenticated(true);
+        setPinInput("");
+        soundFeedback.playSuccess();
+      } else {
+        soundFeedback.playFailure();
+        setPinError(data.error || "Incorrect PIN. Access denied.");
+      }
+    } catch {
+      soundFeedback.playFailure();
+      setPinError("Authentication network error.");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleStaffLogout() {
+    await fetch("/api/auth/staff", { method: "DELETE" });
+    setIsAuthenticated(false);
+    setPinInput("");
+  }
+
   // Auto-dismiss notification after 8 seconds
   useEffect(() => {
     if (!checkResult) return;
@@ -81,6 +145,7 @@ export default function StaffPage() {
   const [slotFeedback, setSlotFeedback] = useState<{ text: string; error?: boolean } | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
       const [slotsRes, resRes] = await Promise.all([
         fetch("/api/slots?all=true"),
@@ -93,11 +158,13 @@ export default function StaffPage() {
     } finally {
       setLoadingSlots(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated, fetchData]);
 
   const handleRefresh = () => {
     setLoadingSlots(true);
@@ -258,6 +325,156 @@ export default function StaffPage() {
     transition: "all 0.2s ease",
   });
 
+  if (checkingAuth) {
+    return (
+      <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
+        <Navbar />
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Loader2 size={32} color="#818cf8" style={{ animation: "spin 1s linear infinite" }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
+        <Navbar />
+        <main
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "2rem 1.25rem 4rem",
+          }}
+        >
+          <div
+            className="glass animate-fade-up"
+            style={{
+              maxWidth: 420,
+              width: "100%",
+              padding: "2.5rem 2rem",
+              borderRadius: "1.5rem",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "1.25rem",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+            }}
+          >
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: "1.25rem",
+                background: "linear-gradient(135deg, rgba(99,102,241,0.25), rgba(79,70,229,0.45))",
+                border: "1px solid rgba(99,102,241,0.4)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 8px 24px rgba(99,102,241,0.3)",
+              }}
+            >
+              <Lock size={30} color="#a5b4fc" />
+            </div>
+
+            <div>
+              <h1 style={{ fontWeight: 800, fontSize: "1.5rem", color: "white", margin: 0, letterSpacing: "-0.02em" }}>
+                Staff Access
+              </h1>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.875rem", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                Enter your staff authorization PIN to manage student check-ins and meal capacities.
+              </p>
+            </div>
+
+            <form onSubmit={handlePinSubmit} style={{ width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <input
+                  id="staff-pin-input"
+                  type="password"
+                  inputMode="numeric"
+                  placeholder="Enter Staff PIN"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  maxLength={10}
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    padding: "0.875rem 1rem",
+                    borderRadius: "0.875rem",
+                    background: "rgba(255,255,255,0.07)",
+                    border: pinError ? "1px solid rgba(244,63,94,0.5)" : "1px solid rgba(255,255,255,0.15)",
+                    color: "white",
+                    fontSize: "1.25rem",
+                    textAlign: "center",
+                    letterSpacing: "0.3em",
+                    fontFamily: "monospace",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {pinError && (
+                  <p style={{ color: "#fda4af", fontSize: "0.8125rem", marginTop: "0.5rem", fontWeight: 500 }}>
+                    {pinError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary"
+                id="staff-pin-submit-btn"
+                disabled={authLoading || !pinInput.trim()}
+                style={{ width: "100%", justifyContent: "center", padding: "0.875rem" }}
+              >
+                {authLoading ? (
+                  <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+                ) : (
+                  <>
+                    <KeyRound size={16} />
+                    <span>Unlock Staff Portal</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div
+              style={{
+                width: "100%",
+                paddingTop: "0.75rem",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}
+            >
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.75rem", margin: 0 }}>
+                Default development PIN: <code style={{ color: "#818cf8", fontWeight: 700 }}>1234</code>
+              </p>
+              <Link
+                href="/"
+                style={{
+                  color: "rgba(255,255,255,0.6)",
+                  fontSize: "0.8125rem",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <ArrowLeft size={14} />
+                <span>Return to Student Dining</span>
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
       <Navbar />
@@ -299,15 +516,44 @@ export default function StaffPage() {
               Monitor slots and check in students
             </p>
           </div>
-          <button
-            className="btn-secondary"
-            onClick={handleRefresh}
-            id="refresh-btn"
-            style={{ padding: "0.5rem 1rem", fontSize: "0.875rem" }}
-          >
-            <RefreshCw size={14} />
-            Refresh
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", flexWrap: "wrap" }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                padding: "0.35rem 0.75rem",
+                borderRadius: "9999px",
+                background: "rgba(16,185,129,0.15)",
+                border: "1px solid rgba(16,185,129,0.35)",
+                color: "#6ee7b7",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+              }}
+            >
+              <ShieldCheck size={13} />
+              Staff Verified
+            </span>
+            <button
+              className="btn-secondary"
+              onClick={handleStaffLogout}
+              id="staff-logout-btn"
+              title="Lock Staff Panel"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 0.875rem", fontSize: "0.875rem" }}
+            >
+              <LogOut size={14} />
+              <span>Lock</span>
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handleRefresh}
+              id="refresh-btn"
+              style={{ padding: "0.5rem 1rem", fontSize: "0.875rem" }}
+            >
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Stats cards */}
